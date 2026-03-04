@@ -197,22 +197,108 @@ def summarize_item(item: Dict[str, Any]) -> Dict[str, str]:
     return summarize_with_model(item) or format_fallback_summary(item)
 
 
+def infer_impact_channel(item: Dict[str, Any]) -> str:
+    tags = set(item.get("tags", []))
+    title = str(item.get("title", ""))
+
+    if "agency_channel" in tags or ("代理人" in title) or ("个险" in title):
+        return "个险代理人渠道"
+    if "bancassurance_channel" in tags or ("银保" in title):
+        return "银保渠道"
+    if "channel_growth" in tags or ("线上" in title) or ("小程序" in title) or ("APP" in title):
+        return "线上直销与私域渠道"
+    if "regulatory" in tags:
+        return "全渠道合规运营"
+    if "risk_claims" in tags:
+        return "理赔与客户经营渠道"
+    return "数字化渠道整体经营"
+
+
+def infer_priority(item: Dict[str, Any]) -> str:
+    score = int(item.get("score", 0))
+    tags = set(item.get("tags", []))
+    title = str(item.get("title", ""))
+
+    if "regulatory" in tags and (score >= 4 or ("处罚" in title) or ("通报" in title)):
+        return "P1"
+    if score >= 4:
+        return "P2"
+    return "P3"
+
+
+def infer_owner_suggestion(item: Dict[str, Any], impact_channel: str) -> str:
+    tags = set(item.get("tags", []))
+    if "regulatory" in tags:
+        return "合规负责人 + 渠道运营负责人"
+    if impact_channel == "个险代理人渠道":
+        return "个险渠道负责人"
+    if impact_channel == "银保渠道":
+        return "银保渠道负责人"
+    if impact_channel == "线上直销与私域渠道":
+        return "数字化渠道负责人"
+    if "product_operation" in tags:
+        return "产品负责人 + 渠道负责人"
+    if "risk_claims" in tags:
+        return "客服理赔负责人 + 运营负责人"
+    if "tech_data" in tags:
+        return "科技中台负责人 + 业务负责人"
+    return "数字化渠道负责人"
+
+
+def infer_action_72h(item: Dict[str, Any], impact_channel: str) -> str:
+    tags = set(item.get("tags", []))
+
+    if "regulatory" in tags:
+        return "T+1完成政策解读，T+2完成渠道影响清单，T+3形成整改或落地方案并明确责任人。"
+    if impact_channel == "个险代理人渠道":
+        return "72小时内同步一线队伍口径，更新展业话术并检查活动率与转化率变化。"
+    if impact_channel == "银保渠道":
+        return "72小时内与重点银行渠道复盘，明确产品策略调整和网点执行节奏。"
+    if impact_channel == "线上直销与私域渠道":
+        return "72小时内上线小流量实验，验证获客成本、转化率和留资质量变化。"
+    if "risk_claims" in tags:
+        return "72小时内检查投诉与理赔异常波动，必要时启动专项风控排查。"
+    return "72小时内完成影响评估、动作拆解和负责人确认，并在例会上追踪进度。"
+
+
 def render_report(template: str, date_str: str, generated_at: str, included: List[Dict[str, Any]]) -> str:
     top = sorted(included, key=lambda x: x.get("score", 0), reverse=True)[:5]
-    top5_lines = [f"- [{i.get('title','')}]({i.get('link','')})｜评分 {i.get('score',0)}｜标签 {', '.join(i.get('tags', [])) or '无'}" for i in top] or ["- 今日无满足阈值的条目"]
+    top5_lines = [
+        f"- [{i.get('title','')}]({i.get('link','')})｜{i.get('priority','P3')}｜影响渠道：{i.get('impact_channel','未知')}｜评分 {i.get('score',0)}\n"
+        f"  - 72小时动作：{i.get('action_72h','')}\n"
+        f"  - 建议负责人：{i.get('owner_suggestion','')}"
+        for i in top
+    ] or ["- 今日无满足阈值的条目"]
 
     cn_reg = [i for i in included if i.get("region") == "cn" and "regulatory" in i.get("tags", [])]
-    cn_lines = [f"- {i.get('title','')}\n  - 摘要：{i.get('summary',{}).get('event','')}\n  - 影响：{i.get('summary',{}).get('impact','')}" for i in cn_reg[:10]] or ["- 今日暂无中国监管高相关条目"]
+    cn_lines = [
+        f"- {i.get('title','')}（{i.get('priority','P3')}）\n"
+        f"  - 摘要：{i.get('summary',{}).get('event','')}\n"
+        f"  - 影响渠道：{i.get('impact_channel','未知')}\n"
+        f"  - 72小时动作：{i.get('action_72h','')}\n"
+        f"  - 建议负责人：{i.get('owner_suggestion','')}"
+        for i in cn_reg[:10]
+    ] or ["- 今日暂无中国监管高相关条目"]
 
     glb = [i for i in included if i.get("region") != "cn"]
-    glb_lines = [f"- {i.get('title','')}（{i.get('source','')}）\n  - 影响：{i.get('summary',{}).get('impact','')}" for i in glb[:10]] or ["- 今日暂无全球高相关条目"]
+    glb_lines = [
+        f"- {i.get('title','')}（{i.get('source','')}）\n"
+        f"  - 影响渠道：{i.get('impact_channel','未知')}\n"
+        f"  - 72小时动作：{i.get('action_72h','')}"
+        for i in glb[:10]
+    ] or ["- 今日暂无全球高相关条目"]
 
     risk_related = []
     for i in included:
         tags = set(i.get("tags", []))
         if tags.intersection({"risk_claims", "capital_investment", "tech_data"}):
             risk_related.append(i)
-    risk_lines = [f"- {i.get('title','')}\n  - 建议动作：{i.get('summary',{}).get('action','')}" for i in risk_related[:10]] or ["- 今日暂无显著风险/机会条目"]
+    risk_lines = [
+        f"- {i.get('title','')}（{i.get('priority','P3')}）\n"
+        f"  - 建议动作：{i.get('action_72h','')}\n"
+        f"  - 责任人：{i.get('owner_suggestion','')}"
+        for i in risk_related[:10]
+    ] or ["- 今日暂无显著风险/机会条目"]
 
     appendix = [f"- [{i.get('title','')}]({i.get('link','')})" for i in included] or ["- 无"]
 
@@ -326,6 +412,11 @@ def main() -> int:
     for it in scored_items:
         obj = dict(it)
         obj["summary"] = summarize_item(it)
+        impact_channel = infer_impact_channel(obj)
+        obj["impact_channel"] = impact_channel
+        obj["priority"] = infer_priority(obj)
+        obj["owner_suggestion"] = infer_owner_suggestion(obj, impact_channel)
+        obj["action_72h"] = infer_action_72h(obj, impact_channel)
         summaries.append(obj)
     save_json(summaries_path, summaries)
 
