@@ -1,0 +1,53 @@
+sources:
+  # 中国监管：国家金融监督管理总局（列表页）
+  - name: "NFRA 监管动态"
+    type: "web_list"
+    region: "cn"
+    url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=4116&itemId=4116&itemUrl=ItemListRightList.html"
+    selectors:
+      item: ".rightList li, .List li, ul li"
+      title: "a"
+      link: "a"
+      date: "span, em"
+
+  - name: "NFRA 政策法规"
+    type: "web_list"
+    region: "cn"
+    url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=4115&itemId=4115&itemUrl=ItemListRightList.html"
+    selectors:
+      item: ".rightList li, .List li, ul li"
+      title: "a"
+      link: "a"
+      date: "span, em"
+
+  # 中国政策：国务院政策文件/最新政策
+  - name: "中国政府网 最新政策"
+    type: "web_list"
+    region: "cn"
+    url: "https://www.gov.cn/zhengce/zuixin.htm"
+    selectors:
+      item: "ul li, .news_box li"
+      title: "a"
+      link: "a"
+      date: "span, .date"
+
+  # 国内财经媒体：保险频道/标签页（可按需增减）
+  - name: "新浪财经 保险"
+    type: "web_list"
+    region: "cn"
+    url: "https://finance.sina.com.cn/money/insurance/"
+    selectors:
+      item: "ul li, .feed-card-item, .list li"
+      title: "a"
+      link: "a"
+      date: "span, .time"
+
+  - name: "证券时报 保险标签"
+    type: "web_list"
+    region: "cn"
+    url: "https://www.stcn.com/tags/保险"
+    selectors:
+      item: "ul li, .news-list li, .list li"
+      title: "a"
+      link: "a"
+      date: "span, time"
