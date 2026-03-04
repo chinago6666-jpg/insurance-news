@@ -5,20 +5,26 @@ sources:
     region: "cn"
     url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=4116&itemId=4116&itemUrl=ItemListRightList.html"
     selectors:
-      item: ".rightList li, .List li, ul li"
+      item: ".rightList li, .List li"
       title: "a"
       link: "a"
       date: "span, em"
+    filters:
+      title_min_length: 10  # 标题至少 10 个字符
+      exclude_keywords: ["首页", "栏目", "导航"]
 
   - name: "NFRA 政策法规"
     type: "web_list"
     region: "cn"
     url: "https://www.nfra.gov.cn/cn/view/pages/ItemList.html?itemPId=4115&itemId=4115&itemUrl=ItemListRightList.html"
     selectors:
-      item: ".rightList li, .List li, ul li"
+      item: ".rightList li, .List li"
       title: "a"
       link: "a"
       date: "span, em"
+    filters:
+      title_min_length: 10
+      exclude_keywords: ["首页", "栏目", "导航"]
 
   # 中国政策：国务院政策文件/最新政策
   - name: "中国政府网 最新政策"
@@ -30,6 +36,8 @@ sources:
       title: "a"
       link: "a"
       date: "span, .date"
+    filters:
+      title_min_length: 10
 
   # 国内财经媒体：保险频道/标签页（可按需增减）
   - name: "新浪财经 保险"
@@ -37,17 +45,23 @@ sources:
     region: "cn"
     url: "https://finance.sina.com.cn/money/insurance/"
     selectors:
-      item: "ul li, .feed-card-item, .list li"
-      title: "a"
+      item: ".feed-card-item"
+      title: "h2 a, .tit a"
       link: "a"
-      date: "span, .time"
+      date: "span.time, .time"
+    filters:
+      title_min_length: 10
+      exclude_keywords: ["首页", "专题", "直播"]
 
   - name: "证券时报 保险标签"
     type: "web_list"
     region: "cn"
     url: "https://www.stcn.com/tags/保险"
     selectors:
-      item: "ul li, .news-list li, .list li"
+      item: ".news-list li, .article-item"
       title: "a"
       link: "a"
-      date: "span, time"
+      date: "span.time, time"
+    filters:
+      title_min_length: 10
+      exclude_keywords: ["首页", "栏目"]

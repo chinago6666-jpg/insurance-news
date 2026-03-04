@@ -95,7 +95,7 @@ def load_keywords(path: Path) -> Tuple[Dict[str, Dict[str, List[str]]], ScoreCon
     raw = load_yaml(path) or {}
     buckets = raw.get("buckets", {}) or {}
     scoring_raw = raw.get("scoring", {}) or {}
-    sc = ScoreConfig(min_score_to_include=int(scoring_raw.get("min_score_to_include", 3)), cn_boost=int(scoring_raw.get("cn_boost", 1)))
+    sc = ScoreConfig(min_score_to_include=int(scoring_raw.get("min_score_to_include", 2)), cn_boost=int(scoring_raw.get("cn_boost", 1)))
     return buckets, sc
 
 
