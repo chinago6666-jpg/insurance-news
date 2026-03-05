@@ -1,0 +1,56 @@
+buckets:
+  regulatory:
+    zh: ["监管","征求意见","处罚","通报","合规","反洗钱","数据合规","偿付能力监管","消保","消费者权益保护"]
+    en: ["regulator","consultation","penalty","compliance","AML","solvency regulation","consumer protection"]
+
+  channel_growth:
+    zh: ["数字化渠道","线上化","私域","企微","小程序","APP","全渠道","转化率","线索","流量","获客","营销自动化"]
+    en: ["digital channel","private domain","mini program","app","omni-channel","conversion","lead","acquisition"]
+
+  agency_channel:
+    zh: ["代理人","个险","营销员","增员","活动率","人均产能","展业","培训","人力结构"]
+    en: ["agent","agency","recruitment","productivity","salesforce"]
+
+  bancassurance_channel:
+    zh: ["银保","银行保险","网点","对公渠道","财富管理渠道","客户经理"]
+    en: ["bancassurance","bank insurance","branch network","wealth channel"]
+
+  product_operation:
+    zh: ["健康险","寿险","年金","重疾","分红险","万能险","互联网保险","产品上新","停售","费率","定价"]
+    en: ["health insurance","life insurance","annuity","critical illness","dividend policy","pricing","product launch"]
+
+  risk_claims:
+    zh: ["理赔","反欺诈","巨灾","医疗控费","骗保","赔付率","投诉","舆情","退保","黑灰产"]
+    en: ["claims","fraud","catastrophe","medical cost","loss ratio"]
+
+  capital_investment:
+    zh: ["偿付能力","增资","发债","投资收益","利率","再保险","资本补充","资产配置"]
+    en: ["solvency","capital raise","bond","investment yield","interest rate","reinsurance"]
+
+  tech_data:
+    zh: ["AI","核保","定价","风控","隐私","数据出境","大模型","智能客服","RPA","中台","数据治理","数据安全"]
+    en: ["AI","underwriting","pricing","risk control","privacy","data transfer","LLM","data governance","data security"]
+
+  company_market:
+    zh: ["并购","合作","业绩","战略","出海","裁员","组织调整","渠道改革","经营计划","转型"]
+    en: ["M&A","partnership","earnings","strategy","expansion","layoff","restructuring"]
+
+scoring:
+  min_score_to_include: 3  # P0 优化：提高阈值到 3 分，排除低质量新闻
+  cn_boost: 1
+  
+  # P0 优化：负面关键词扣分（排除股市公告、快讯等噪音）
+  negative_keywords:
+    - "公告"
+    - "快讯"
+    - "开盘"
+    - "收盘"
+    - "股价"
+    - "涨停"
+    - "跌停"
+    - "停牌"
+    - "复牌"
+    - "大宗交易"
+    - "龙虎榜"
+  
+  negative_score: -3  # 命中负面关键词扣 3 分（直接排除）

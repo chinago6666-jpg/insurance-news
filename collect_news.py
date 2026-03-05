@@ -33,6 +33,7 @@ class SourceConfig:
     query: Optional[str] = None
     lang: Optional[str] = None
     selectors: Optional[Dict[str, str]] = None
+    filters: Optional[Dict[str, Any]] = None  # P0 优化：过滤规则配置
 
 
 def load_yaml(path: Path) -> Any:
@@ -272,7 +273,17 @@ def load_sources(sources_path: Path) -> List[SourceConfig]:
         t = str(s.get("type", "")).strip()
         n = str(s.get("name", "")).strip() or "unknown_source"
         r = str(s.get("region", "global")).strip() or "global"
-        out.append(SourceConfig(name=n, type=t, region=r, url=s.get("url"), query=s.get("query"), lang=s.get("lang"), selectors=s.get("selectors")))
+        # P0 优化：加载 filters 配置
+        out.append(SourceConfig(
+            name=n, 
+            type=t, 
+            region=r, 
+            url=s.get("url"), 
+            query=s.get("query"), 
+            lang=s.get("lang"), 
+            selectors=s.get("selectors"),
+            filters=s.get("filters")
+        ))
     return out
 
 
@@ -305,6 +316,47 @@ def load_offline_items(path: Path) -> List[Dict[str, Any]]:
     return out
 
 
+def apply_filters(items: List[Dict[str, Any]], filters: Optional[Dict[str, Any]], source_name: str) -> List[Dict[str, Any]]:
+    """P0 优化：应用新闻过滤规则（title_min_length, exclude_keywords, require_keywords）"""
+    if not filters:
+        return items
+    
+    title_min_length = int(filters.get("title_min_length", 0))
+    exclude_keywords = list(filters.get("exclude_keywords", []))
+    require_keywords = list(filters.get("require_keywords", []))
+    
+    filtered = []
+    for item in items:
+        title = item.get("title", "")
+        
+        # 标题长度过滤
+        if len(title) < title_min_length:
+            continue
+        
+        # 排除关键词过滤
+        excluded = False
+        for kw in exclude_keywords:
+            if kw in title:
+                excluded = True
+                break
+        if excluded:
+            continue
+        
+        # P0 优化：必需关键词过滤（确保新闻与保险相关）
+        if require_keywords:
+            matched = False
+            for kw in require_keywords:
+                if kw in title:
+                    matched = True
+                    break
+            if not matched:
+                continue
+        
+        filtered.append(item)
+    
+    return filtered
+
+
 def collect_all(sources: Iterable[SourceConfig]) -> List[Dict[str, Any]]:
     all_items: List[Dict[str, Any]] = []
     collected_at = datetime.now(timezone.utc).isoformat()
@@ -330,6 +382,14 @@ def collect_all(sources: Iterable[SourceConfig]) -> List[Dict[str, Any]]:
             else:
                 logging.warning("Skip source '%s': unsupported type=%s", src.name, src.type)
                 continue
+
+            # P0 优化：应用过滤规则
+            filters = getattr(src, 'filters', None)
+            if filters:
+                before_count = len(items)
+                items = apply_filters(items, filters, src.name)
+                if before_count > 0:
+                    logging.info("Source '%s': filtered %d -> %d items", src.name, before_count, len(items))
 
             for i in items:
                 i["collected_at"] = collected_at

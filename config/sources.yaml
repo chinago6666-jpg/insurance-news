@@ -1,5 +1,5 @@
 sources:
-  # 中国监管：国家金融监督管理总局（列表页）
+  # 中国监管：国家金融监督管理总局（列表页）- 高质量源
   - name: "NFRA 监管动态"
     type: "web_list"
     region: "cn"
@@ -10,7 +10,7 @@ sources:
       link: "a"
       date: "span, em"
     filters:
-      title_min_length: 10  # 标题至少 10 个字符
+      title_min_length: 10
       exclude_keywords: ["首页", "栏目", "导航"]
 
   - name: "NFRA 政策法规"
@@ -39,7 +39,7 @@ sources:
     filters:
       title_min_length: 10
 
-  # 国内财经媒体：保险频道/标签页（可按需增减）
+  # 国内财经媒体：保险频道 - P0 优化：添加 require_keywords 确保只抓取保险相关新闻
   - name: "新浪财经 保险"
     type: "web_list"
     region: "cn"
@@ -50,8 +50,9 @@ sources:
       link: "a"
       date: "span.time, .time"
     filters:
-      title_min_length: 10
-      exclude_keywords: ["首页", "专题", "直播"]
+      title_min_length: 12  # P0 优化：提高到 12 字符
+      exclude_keywords: ["首页", "专题", "直播", "快讯"]
+      require_keywords: ["保险", "寿险", "财险", "银保", "监管", "保单", "理赔"]  # P0 优化：必须包含保险关键词
 
   - name: "证券时报 保险标签"
     type: "web_list"
@@ -63,5 +64,6 @@ sources:
       link: "a"
       date: "span.time, time"
     filters:
-      title_min_length: 10
-      exclude_keywords: ["首页", "栏目"]
+      title_min_length: 12  # P0 优化：提高到 12 字符
+      exclude_keywords: ["首页", "栏目", "公告", "快讯"]
+      require_keywords: ["保险", "寿险", "财险", "银保", "监管"]  # P0 优化：必须包含保险关键词

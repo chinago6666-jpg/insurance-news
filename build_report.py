@@ -24,6 +24,8 @@ except ImportError:
 class ScoreConfig:
     min_score_to_include: int = 3
     cn_boost: int = 1
+    negative_keywords: List[str] = None  # P0 优化：负面关键词列表
+    negative_score: int = -3  # P0 优化：负面关键词扣分
 
 
 def load_yaml(path: Path) -> Any:
@@ -95,7 +97,12 @@ def load_keywords(path: Path) -> Tuple[Dict[str, Dict[str, List[str]]], ScoreCon
     raw = load_yaml(path) or {}
     buckets = raw.get("buckets", {}) or {}
     scoring_raw = raw.get("scoring", {}) or {}
-    sc = ScoreConfig(min_score_to_include=int(scoring_raw.get("min_score_to_include", 2)), cn_boost=int(scoring_raw.get("cn_boost", 1)))
+    sc = ScoreConfig(
+        min_score_to_include=int(scoring_raw.get("min_score_to_include", 3)),
+        cn_boost=int(scoring_raw.get("cn_boost", 1)),
+        negative_keywords=list(scoring_raw.get("negative_keywords", [])),
+        negative_score=int(scoring_raw.get("negative_score", -3))
+    )
     return buckets, sc
 
 
@@ -125,6 +132,7 @@ def score_item(item: Dict[str, Any], matched: Dict[str, List[str]], sc: ScoreCon
     reasons: List[str] = []
     score = 0
 
+    # 正面评分
     score += len(matched)
     if matched:
         reasons.append(f"关键词桶命中 {len(matched)}")
@@ -133,13 +141,20 @@ def score_item(item: Dict[str, Any], matched: Dict[str, List[str]], sc: ScoreCon
         score += 2
         reasons.append("监管主题 +2")
 
-    if ("公告" in title) or ("announcement" in title.lower()) or ("notice" in title.lower()):
-        score += 1
-        reasons.append("公告信号 +1")
-
     if region == "cn" or "china" in title.lower() or "中国" in title:
         score += sc.cn_boost
         reasons.append(f"中国相关 +{sc.cn_boost}")
+
+    # P0 优化：负面关键词扣分（排除股市公告、快讯等噪音）
+    title_low = title.lower()
+    negative_hits = []
+    for neg_kw in (sc.negative_keywords or []):
+        if neg_kw in title or neg_kw.lower() in title_low:
+            negative_hits.append(neg_kw)
+    
+    if negative_hits:
+        score += sc.negative_score  # 通常是 -3 分
+        reasons.append(f"负面关键词 [{','.join(negative_hits)}] {sc.negative_score}分")
 
     return score, reasons
 
