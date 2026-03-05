@@ -101,6 +101,54 @@ def contains_duplicate(norm_title: str, existing_norm_titles: Set[str]) -> bool:
     return False
 
 
+def parse_datetime_for_filter(value: str) -> Optional[datetime]:
+    """
+    阶段 3 优化：解析时间用于过滤（返回 datetime 对象）
+    
+    Args:
+        value: 时间字符串（ISO 格式或其他常见格式）
+    
+    Returns:
+        datetime 对象（带时区），解析失败返回 None
+    """
+    if not value:
+        return None
+    
+    v = str(value).strip()
+    if not v:
+        return None
+    
+    # 尝试多种格式
+    formats = [
+        "%Y-%m-%dT%H:%M:%S%z",      # 2026-03-05T10:00:00+08:00
+        "%Y-%m-%dT%H:%M:%SZ",       # 2026-03-05T10:00:00Z
+        "%Y-%m-%dT%H:%M:%S",        # 2026-03-05T10:00:00
+        "%Y-%m-%d %H:%M:%S",        # 2026-03-05 10:00:00
+        "%Y-%m-%d",                 # 2026-03-05
+    ]
+    
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(v[:19], fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    
+    # 尝试使用 email 解析器
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(v)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    
+    return None
+
+
 def load_keywords(path: Path) -> Tuple[Dict[str, Dict[str, List[str]]], ScoreConfig]:
     raw = load_yaml(path) or {}
     buckets = raw.get("buckets", {}) or {}
@@ -426,12 +474,27 @@ def main() -> int:
     seen_urls = set(load_json_file(seen_urls_path, default=[]))
     seen_title_hashes = set(load_json_file(seen_titles_path, default=[]))
 
+    # 阶段 3 优化：时间窗口配置（只抓取最近 N 天的新闻）
+    TIME_WINDOW_DAYS = 7  # 7 天时间窗口
+    
     deduped: List[Dict[str, Any]] = []
     current_norm_titles: Set[str] = set()
     new_seen_urls: Set[str] = set()
     new_seen_title_hashes: Set[str] = set()
+    
+    # 统计信息
+    stats = {
+        "total": 0,
+        "missing_time": 0,
+        "out_of_window": 0,
+        "duplicate_url": 0,
+        "duplicate_title": 0,
+        "included": 0
+    }
 
     for it in raw_items:
+        stats["total"] += 1
+        
         title = str(it.get("title", "")).strip()
         link = str(it.get("link", "")).strip()
         region = str(it.get("region", "global")).strip().lower() or "global"
@@ -441,13 +504,36 @@ def main() -> int:
         if not title or not link:
             continue
 
+        # 阶段 3 优化：时间窗口检查
+        if published_at:
+            try:
+                pub_time = parse_datetime_for_filter(published_at)
+                if pub_time:
+                    age_days = (datetime.now(timezone.utc) - pub_time).days
+                    if age_days > TIME_WINDOW_DAYS:
+                        stats["out_of_window"] += 1
+                        continue  # 超过时间窗口，跳过
+                    elif age_days < 0:
+                        # 未来时间，可能是时区问题，仍然接受
+                        pass
+            except Exception as e:
+                logging.debug("Time parse failed for %s: %s", title[:50], e)
+                stats["missing_time"] += 1
+        else:
+            stats["missing_time"] += 1
+            # 没有时间戳的新闻，降低可信度，但仍然接受（如果其他条件满足）
+
+        # URL 去重
         norm_url = normalize_url(link)
         if not norm_url or norm_url in seen_urls:
+            stats["duplicate_url"] += 1
             continue
 
+        # 标题去重
         norm_title = normalize_title(title)
         th = title_hash(norm_title)
         if th in seen_title_hashes:
+            stats["duplicate_title"] += 1
             continue
 
         if norm_title in current_norm_titles or contains_duplicate(norm_title, current_norm_titles):
@@ -523,7 +609,12 @@ def main() -> int:
     save_json(seen_urls_path, sorted(seen_urls.union(new_seen_urls)))
     save_json(seen_titles_path, sorted(seen_title_hashes.union(new_seen_title_hashes)))
 
+    # 阶段 3 优化：输出详细统计
     logging.info("Done: raw=%d dedup=%d included=%d", len(raw_items), len(deduped), len(included))
+    if stats["out_of_window"] > 0 or stats["missing_time"] > 0:
+        logging.info("Time filter stats: out_of_window=%d missing_time=%d duplicate_url=%d duplicate_title=%d",
+                     stats.get("out_of_window", 0), stats.get("missing_time", 0),
+                     stats.get("duplicate_url", 0), stats.get("duplicate_title", 0))
     logging.info("Wrote: %s", report_path)
     return 0
 
