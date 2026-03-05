@@ -357,7 +357,14 @@ def apply_filters(items: List[Dict[str, Any]], filters: Optional[Dict[str, Any]]
     return filtered
 
 
-def collect_all(sources: Iterable[SourceConfig]) -> List[Dict[str, Any]]:
+def collect_all(sources: Iterable[SourceConfig], fetch_content_flag: bool = False) -> List[Dict[str, Any]]:
+    """
+    收集所有新闻
+    
+    Args:
+        sources: 新闻源配置
+        fetch_content_flag: 是否抓取正文内容（阶段 2 功能）
+    """
     all_items: List[Dict[str, Any]] = []
     collected_at = datetime.now(timezone.utc).isoformat()
 
@@ -399,6 +406,17 @@ def collect_all(sources: Iterable[SourceConfig]) -> List[Dict[str, Any]]:
         except Exception as exc:
             logging.exception("Source failed: %s (%s)", src.name, exc)
 
+    # 阶段 2 优化：抓取正文内容
+    if fetch_content_flag and all_items:
+        logging.info("Fetching content for %d items (stage 2 optimization)...", len(all_items))
+        try:
+            from content_fetcher import fetch_contents_batch  # type: ignore
+            all_items = fetch_contents_batch(all_items, batch_size=5)
+            content_count = sum(1 for i in all_items if i.get("has_content"))
+            logging.info("Content fetched: %d/%d items", content_count, len(all_items))
+        except ImportError as e:
+            logging.warning("Content fetcher not available: %s", e)
+
     return all_items
 
 
@@ -416,6 +434,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sources", default="config/sources.yaml", help="Sources YAML path")
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"), help="Output date folder")
     parser.add_argument("--offline-from", default=None, help="Local JSON list path for offline mode (skip network)")
+    # 阶段 2 优化：添加内容抓取选项
+    parser.add_argument("--fetch-content", action="store_true", help="Fetch article content for value scoring (stage 2)")
     parser.add_argument("--log-level", default="INFO", help="DEBUG/INFO/WARNING/ERROR")
     return parser.parse_args()
 
@@ -436,7 +456,8 @@ def main() -> int:
         logging.info("Offline mode loaded %d items from %s", len(items), offline_path)
     else:
         sources = load_sources(sources_path)
-        items = collect_all(sources)
+        # 阶段 2 优化：传递 fetch_content 参数
+        items = collect_all(sources, fetch_content_flag=args.fetch_content)
     out_file = write_output(root, args.date, items)
 
     logging.info("Done. total_items=%d output=%s", len(items), out_file)

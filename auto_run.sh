@@ -55,11 +55,11 @@ fi
 
 log "✅ 虚拟环境检查通过"
 
-# 任务 1: 收集新闻
+# 任务 1: 收集新闻（阶段 2 优化：添加 --fetch-content 抓取正文）
 log ""
 log "📥 任务 1/3: 开始收集新闻..."
-if "$VENV_PYTHON" "$SCRIPT_DIR/collect_news.py" --log-level INFO >> "$LOG_FILE" 2>&1; then
-    log "✅ 任务 1 完成：新闻收集成功"
+if "$VENV_PYTHON" "$SCRIPT_DIR/collect_news.py" --fetch-content --log-level INFO >> "$LOG_FILE" 2>&1; then
+    log "✅ 任务 1 完成：新闻收集成功（含正文抓取）"
 else
     ERROR_MSG=$(tail -5 "$LOG_FILE")
     log "❌ 任务 1 失败：新闻收集失败"

@@ -14,6 +14,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse, urlunparse
 
+# 阶段 1&2 优化：导入价值评分模块
+try:
+    from value_scorer import ValueScorer  # type: ignore
+    VALUE_SCORER_ENABLED = True
+except ImportError:
+    VALUE_SCORER_ENABLED = False
+    logging.warning("ValueScorer not available, using basic scoring only")
+
 try:
     import yaml  # type: ignore
 except ImportError:
@@ -127,6 +135,7 @@ def bucket_match(title: str, buckets: Dict[str, Dict[str, List[str]]]) -> Dict[s
 
 
 def score_item(item: Dict[str, Any], matched: Dict[str, List[str]], sc: ScoreConfig) -> Tuple[int, List[str]]:
+    """基础评分（兼容旧版）"""
     title = str(item.get("title", ""))
     region = str(item.get("region", "")).lower()
     reasons: List[str] = []
@@ -157,6 +166,30 @@ def score_item(item: Dict[str, Any], matched: Dict[str, List[str]], sc: ScoreCon
         reasons.append(f"负面关键词 [{','.join(negative_hits)}] {sc.negative_score}分")
 
     return score, reasons
+
+
+def calculate_value_score(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    阶段 1&2 优化：计算新闻价值分（5 维模型）
+    
+    返回：
+        {
+            "score": 总分，
+            "level": 等级，
+            "reasons": [原因],
+            "breakdown": {维度得分}
+        }
+    """
+    if not VALUE_SCORER_ENABLED:
+        # 降级处理：使用基础评分
+        return {"score": 0, "level": "⚪ 一般", "reasons": ["价值评分未启用"], "breakdown": {}}
+    
+    try:
+        scorer = ValueScorer()
+        return scorer.calculate_value(item)
+    except Exception as e:
+        logging.warning("Value scoring failed: %s", e)
+        return {"score": 0, "level": "⚪ 一般", "reasons": [f"评分失败：{e}"], "breakdown": {}}
 
 
 def format_fallback_summary(item: Dict[str, Any]) -> Dict[str, str]:
@@ -423,6 +456,7 @@ def main() -> int:
 
     save_json(scored_path, scored_items)
 
+    # 阶段 1&2 优化：添加价值评分
     summaries: List[Dict[str, Any]] = []
     for it in scored_items:
         obj = dict(it)
@@ -432,10 +466,30 @@ def main() -> int:
         obj["priority"] = infer_priority(obj)
         obj["owner_suggestion"] = infer_owner_suggestion(obj, impact_channel)
         obj["action_72h"] = infer_action_72h(obj, impact_channel)
+        
+        # 阶段 1&2 优化：计算价值分
+        if VALUE_SCORER_ENABLED and obj.get("content"):
+            value_result = calculate_value_score(obj)
+            obj["value_score"] = value_result["score"]
+            obj["value_level"] = value_result["level"]
+            obj["value_reasons"] = value_result["reasons"]
+            obj["value_breakdown"] = value_result["breakdown"]
+            # 综合分数：基础分 + 价值分
+            obj["final_score"] = int(obj.get("score", 0)) + obj["value_score"]
+        else:
+            obj["value_score"] = 0
+            obj["value_level"] = "⚪ 一般"
+            obj["value_reasons"] = []
+            obj["value_breakdown"] = {}
+            obj["final_score"] = int(obj.get("score", 0))
+        
         summaries.append(obj)
     save_json(summaries_path, summaries)
 
-    included = [x for x in summaries if int(x.get("score", 0)) >= sc.min_score_to_include]
+    # 阶段 1&2 优化：使用综合分数筛选
+    included = [x for x in summaries if x.get("final_score", 0) >= sc.min_score_to_include]
+    # 按综合分数排序
+    included.sort(key=lambda x: x.get("final_score", 0), reverse=True)
     generated_at = datetime.now(timezone.utc).isoformat()
     report = render_report(template, args.date, generated_at, included)
     report_path.write_text(report, encoding="utf-8")
