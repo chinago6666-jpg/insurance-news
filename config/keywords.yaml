@@ -36,7 +36,7 @@ buckets:
     en: ["M&A","partnership","earnings","strategy","expansion","layoff","restructuring"]
 
 scoring:
-  min_score_to_include: 3  # P0 优化：提高阈值到 3 分，排除低质量新闻
+  min_score_to_include: 2  # 优化：从 3 降到 2，解决"都命中不到"的问题
   cn_boost: 1
   
   # P0 优化：负面关键词扣分（排除股市公告、快讯等噪音）
@@ -54,3 +54,7 @@ scoring:
     - "龙虎榜"
   
   negative_score: -3  # 命中负面关键词扣 3 分（直接排除）
+  
+  # 阶段 3 优化：分级推送阈值
+  min_score_for_push: 5  # 推送阈值（≥5 分的新闻才推送到飞书）
+  push_top_n: 5          # 最多推送 Top 5 条

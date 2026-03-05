@@ -135,24 +135,50 @@ def bucket_match(title: str, buckets: Dict[str, Dict[str, List[str]]]) -> Dict[s
 
 
 def score_item(item: Dict[str, Any], matched: Dict[str, List[str]], sc: ScoreConfig) -> Tuple[int, List[str]]:
-    """基础评分（兼容旧版）"""
+    """
+    基础评分（兼容旧版）
+    阶段 3 优化：优化评分规则，让有价值新闻更容易达到阈值
+    """
     title = str(item.get("title", ""))
     region = str(item.get("region", "")).lower()
+    source = str(item.get("source", "")).lower()
     reasons: List[str] = []
     score = 0
 
-    # 正面评分
+    # 正面评分：关键词桶命中
     score += len(matched)
     if matched:
         reasons.append(f"关键词桶命中 {len(matched)}")
 
+    # 阶段 3 优化：细分主题加分
     if "regulatory" in matched:
-        score += 2
-        reasons.append("监管主题 +2")
+        score += 3  # 监管主题 +3（从 +2 提高）
+        reasons.append("监管主题 +3")
+    elif "product_operation" in matched:
+        score += 2  # 产品主题 +2
+        reasons.append("产品主题 +2")
+    elif "channel_growth" in matched or "agency_channel" in matched or "bancassurance_channel" in matched:
+        score += 2  # 渠道主题 +2
+        reasons.append("渠道主题 +2")
+    elif "tech_data" in matched:
+        score += 2  # 科技主题 +2
+        reasons.append("科技主题 +2")
 
+    # 中国相关
     if region == "cn" or "china" in title.lower() or "中国" in title:
         score += sc.cn_boost
         reasons.append(f"中国相关 +{sc.cn_boost}")
+
+    # 阶段 3 优化：来源加分（权威来源额外 +1-2 分）
+    if "nfra" in source or "监管" in source:
+        score += 2
+        reasons.append("权威来源 +2")
+    elif "政府" in source or "gov" in source:
+        score += 2
+        reasons.append("政府来源 +2")
+    elif "保险报" in source or "官方" in source:
+        score += 1
+        reasons.append("官方媒体 +1")
 
     # P0 优化：负面关键词扣分（排除股市公告、快讯等噪音）
     title_low = title.lower()
